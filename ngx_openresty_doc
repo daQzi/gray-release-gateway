@@ -1,0 +1,54 @@
+1.安装ngx_openresty
+	cd /usr/servers/
+	wget http://openresty.org/download/ngx_openresty-1.7.7.2.tar.gz
+	tar -xzvf ngx_openresty-1.7.7.2.tar.gz
+2.安装LuaJIT
+	cd bundle/LuaJIT-2.1-20150120/
+	make clean && make && make install
+	ln -sf luajit-2.1.0-alpha /usr/local/bin/luajit
+3.下载ngx_cache_purge模块，该模块用于清理nginx缓存
+	cd /usr/servers/ngx_openresty-1.7.7.2/bundle
+	wget https://github.com/FRiCKLE/ngx_cache_purge/archive/2.3.tar.gz
+	tar -xvf 2.3.tar.gz
+4.下载nginx_upstream_check_module模块，该模块用于ustream健康检查
+	cd /usr/servers/ngx_openresty-1.7.7.2/bundle
+	wget https://github.com/yaoweibin/nginx_upstream_check_module/archive/v0.3.0.tar.gz
+	tar -xvf v0.3.0.tar.gz
+5.安装ngx_openresty
+	cd /usr/servers/ngx_openresty-1.7.7.2
+	./configure --prefix=/usr/servers --with-http_realip_module  --with-pcre  --with-luajit --add-module=./bundle/ngx_cache_purge-2.3/ --add-module=./bundle/nginx_upstream_check_module-0.3.0/ -j2
+	make && make install
+6.检查
+	/usr/servers/luajit ：luajit环境
+	/usr/servers/lualib：要使用的lua库
+
+
+开始配置
+	在nginx.conf同级目录下新建lua文件夹，把test.lua放进去(conf/lua/test.lua)
+	修改nginx.conf
+	1.修改http模块
+		增加:
+			lua_package_path "/usr/servers/lualib/?.lua;;";  #lua 模块
+    		lua_package_cpath "/usr/servers/lualib/?.so;;";  #c模块:
+    2.upstream模块
+    	upstream client {#生产原有的两台
+			server 127.0.0.1:8080 weight=1;
+			server 127.0.0.1:8090 weight=1;
+    	}
+
+    	upstream test {#灰度发布的一台
+			server 127.0.0.1:8011;
+    	}
+    3.server模块下
+    	location @test{
+			proxy_pass  http://test;
+		}
+
+		location @client {
+			proxy_pass  http://client;
+		}
+
+		location / {
+			#include lua.conf;
+			content_by_lua_file conf/lua/test.lua;	
+		}
